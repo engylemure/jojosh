@@ -1,0 +1,11 @@
+# Build files
+*.o
+build/
+# Binaries or Target path
+*.bin
+target/
+# Editor files
+.vscode
+
+# dump core
+vgcore.*
