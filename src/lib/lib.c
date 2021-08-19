@@ -6,6 +6,8 @@
 #include "lib.h"
 #include "util/string_util/string_util.h"
 
+
+
 char *read_env(char *name) {
   char *env = malloc(sizeof(char) * BUFFER_MAX_SIZE);
   char *env_value;
@@ -93,6 +95,12 @@ CallArgs *initialize_call_args(int call_amount) {
 const char BlueAnsi[] = "\033[94m";
 const char JojoAnsi[] = "\033[95m";
 const char EndAnsi[] = "\033[0m";
+const char RedAnsi[] = "\033[91m";
+const char YellowAnsi[] = "\033[93m";
+
+void todo(char *msg) {
+  printf("%sTODO: %s%s\n", YellowAnsi, msg, EndAnsi);
+}
 
 CallArgs *prompt_user(ShellState *state) {
   if (state != NULL) {
@@ -115,11 +123,11 @@ CallArgs *prompt_user(ShellState *state) {
 }
 
 void install_sig_handlers() {
-  // TODO
+  todo("Install signal handlers!");
 }
 
 void clean_sig_handlers() {
-  // TODO
+  todo("Clean Signal handlers!");
 }
 
 typedef struct execArgs {
@@ -135,7 +143,15 @@ void drop_exec_args(ExecArgs *self);
 // the final result of the parsing instead of the initial one
 
 char* fmt_call(void* call) {
-  return strdup((char*)call);
+  char* call_str = (char*)call;
+  int fmt_len = strlen(call_str)+3;
+  char* fmt = malloc(fmt_len);
+  fmt[0] = '\'';
+  fmt[1] = '\0';
+  strcat(fmt, call_str);
+  fmt[fmt_len - 2] = '\'';
+  fmt[fmt_len - 1] = '\0';  
+  return fmt;
 }
 
 char* fmt_call_list(void* call_list) {
@@ -157,6 +173,9 @@ LinkedList* calls_from_str(char *str) {
         list_calls->push(list_calls, list_call);
         list_call = initialize_list(&fmt_call, free);
       } else if (str_equals(trimmed_cmd, "&")) {
+        list_calls->push(list_calls, list_call);
+        list_call = initialize_list(&fmt_call, free);
+      }else if (str_equals(trimmed_cmd, "&&")) {
         list_calls->push(list_calls, list_call);
         list_call = initialize_list(&fmt_call, free);
       } else {
@@ -236,8 +255,7 @@ enum CallStatus basic_call(CallArgs *call_args, CallResult *res) {
       printf("JoJo Shell was exited!\n");
       status = Exit;
     } else if (str_equals(program_name, "cd")) {
-      // TODO
-      printf("TODO: handle 'cd' call\n");
+      todo("handle 'cd' call");
       status = Continue;
     } else {
       pid_t child_pid = fork();

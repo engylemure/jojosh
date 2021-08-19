@@ -9,3 +9,6 @@ target/
 
 # dump core
 vgcore.*
+
+# massif
+massif.*

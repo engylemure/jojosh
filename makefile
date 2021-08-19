@@ -23,22 +23,36 @@ ifeq ($(DEBUG), 1)
 endif
 
 initial_setup:
-	echo $(OBJECTS)
-	$(MKDIR) -p $(BUILD_PATH) $(addprefix $(BUILD_PATH)/,$(SOURCES_PATH:./=)) $(TARGET_PATH)
+	@$(MKDIR) -p $(BUILD_PATH) $(addprefix $(BUILD_PATH)/,$(SOURCES_PATH:./=)) $(TARGET_PATH)
 
-all: initial_setup $(BINARY)
-
+build_start:
+	@$(ECHO) "Compiling $(BINARY)"
+all: build_start initial_setup $(BINARY)
+	@$(ECHO) "Compilation finished!"
 $(BINARY): $(OBJECTS)
-	$(COMPILER_CMD) $(OBJECTS) -o $(BINARY_PATH)
+	@$(COMPILER_CMD) $(OBJECTS) -o $(BINARY_PATH)
 
 $(BUILD_PATH)/%.o: %.c
-	$(COMPILER_CMD) -c $<  -o $@
+	@$(ECHO) Compiling $<
+	@$(COMPILER_CMD) -c $< -o $@
 
 build_cleanup:
-	$(RM) -f $(BUILD_PATH)
-
+	@$(RM) -f $(BUILD_PATH)
+	@$(ECHO) "build directory was removed"
 clean:
-	$(RM) -f $(TARGET_PATH) $(BUILD_PATH)
+	@$(RM) -f $(TARGET_PATH) $(BUILD_PATH)
+	@$(ECHO) "binaries and build directory where removed"
+
+ifeq ($(shell test -e $(BINARY_PATH) && echo -n yes),yes)
+run: run_without_build
+else
+run: run_with_build
+endif
+
+run_with_build: all
+	@$(BINARY_PATH)
+run_without_build:
+	@$(BINARY_PATH)
 
 help:
 	@$(ECHO) "Targets:"
