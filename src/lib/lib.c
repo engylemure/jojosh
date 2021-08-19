@@ -133,10 +133,49 @@ void drop_exec_args(ExecArgs *self);
 // We want to parse and tokenize to separate this
 // in different call objects instead of this ExecArgs, this actually should be
 // the final result of the parsing instead of the initial one
+
+char* fmt_call(void* call) {
+  return strdup((char*)call);
+}
+
+char* fmt_call_list(void* call_list) {
+  LinkedList* list = (LinkedList*)call_list;
+  return list->fmt(list);
+}
+
+LinkedList* calls_from_str(char *str) {
+  StrSplitResult *split_res = str_split(strdup(str), " ");
+  LinkedList* list_calls = initialize_list(&fmt_call_list, (void(*)(void*))drop_list);
+  LinkedList* list_call = initialize_list(&fmt_call, free);
+  int i;
+  ListNode* str_node;
+  for (str_node = split_res->str_list->head, i = 0; str_node != NULL;
+       str_node = split_res->str_list->next_node(str_node)) {
+    if (strlen(str_node->data) != 0) {
+      char *trimmed_cmd = str_trim(str_node->data);
+      if (str_equals(trimmed_cmd, "|")) {
+        list_calls->push(list_calls, list_call);
+        list_call = initialize_list(&fmt_call, free);
+      } else if (str_equals(trimmed_cmd, "&")) {
+        list_calls->push(list_calls, list_call);
+        list_call = initialize_list(&fmt_call, free);
+      } else {
+        list_call->push(list_call, trimmed_cmd);
+      }
+    }
+  }
+  list_calls->push(list_calls, list_call);
+  list_calls->print(list_calls, stdout);
+  split_res->drop(split_res);
+  return list_calls;
+}
+
 ExecArgs *from_str_call(char *str) {
+  calls_from_str(str);
   ExecArgs *self = malloc(sizeof(ExecArgs));
   self->drop = *drop_exec_args;
   StrSplitResult *split_res = str_split(strdup(str), " ");
+  split_res->str_list->print(split_res->str_list, stdout);
   self->argc = split_res->str_list->count(split_res->str_list);
   ListNode *node;
   self->argv = malloc(sizeof(char *) * (self->argc + 1));
@@ -154,6 +193,26 @@ ExecArgs *from_str_call(char *str) {
   return self;
 }
 
+ExecArgs* from_call_list(LinkedList* list) {
+  ExecArgs *self = malloc(sizeof(ExecArgs));
+  self->drop = *drop_exec_args;
+  self->argc = list->count(list);
+  ListNode *node;
+  self->argv = malloc(sizeof(char *) * (self->argc + 1));
+  int i;
+  for (node = list->head, i = 0; node != NULL;
+       node = next_node(node)) {
+    if (strlen(node->data) != 0) {
+      char *trimmed_cmd = str_trim(node->data);
+      self->argv[i++] = trimmed_cmd;
+    }
+  }
+  self->argv[i] = NULL;
+  self->argc = i;
+  // list->drop(list);
+  return self;
+}
+
 void drop_exec_args(ExecArgs *self) {
   int i;
   for (i = 0; i < self->argc; i++) {
@@ -165,7 +224,9 @@ void drop_exec_args(ExecArgs *self) {
 
 enum CallStatus basic_call(CallArgs *call_args, CallResult *res) {
   char *delim = " ";
-  ExecArgs *exec_args = from_str_call(call_args->str_calls[0]);
+  LinkedList* calls_list = calls_from_str(call_args->str_calls[0]);
+  ExecArgs *exec_args = from_call_list(calls_list->head->data);
+  calls_list->drop(calls_list);
   enum CallStatus status = UnknownCommand;
   if (exec_args->argc == 0) {
     status = Continue;

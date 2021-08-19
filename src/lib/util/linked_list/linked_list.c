@@ -1,6 +1,7 @@
 #include "linked_list.h"
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 ListNode *initialize_list_node(void *data) {
   ListNode *new_node = malloc(sizeof(ListNode));
@@ -19,6 +20,8 @@ void print_list(LinkedList *self, FILE *stream);
 void print_node(LinkedList *list, void *node, FILE *stream);
 void iterate(LinkedList *list, void (*cb)(void *data, int i, void *aux_arg),
              void *aux_arg);
+ListNode* next_node(ListNode* node);
+char* fmt_list(LinkedList* list);
 int count(LinkedList *list);
 
 LinkedList *initialize_list(char *(*fmt_data)(void *to_be_printed),
@@ -26,6 +29,7 @@ LinkedList *initialize_list(char *(*fmt_data)(void *to_be_printed),
   LinkedList *new_list = (LinkedList *)malloc(sizeof(LinkedList));
   new_list->head = NULL;
   new_list->tail = NULL;
+  new_list->next_node = *next_node;
   new_list->count = *count;
   new_list->print = *print_list;
   new_list->print_node = *print_node;
@@ -36,6 +40,8 @@ LinkedList *initialize_list(char *(*fmt_data)(void *to_be_printed),
   new_list->drop = *drop;
   new_list->drop_data = drop_data;
   new_list->for_each = *iterate;
+  new_list->fmt = *fmt_list;
+  
   if (fmt_data != NULL) {
     new_list->fmt_node_data = fmt_data;
   } else {
@@ -112,18 +118,30 @@ ListNode *next_node(ListNode *node) { return node != NULL ? node->next : NULL; }
 void drop(LinkedList *self) { drop_list(self); }
 
 void print_list(LinkedList *list, FILE *stream) {
+  char *list_formatted = list->fmt(list);
+  fprintf(stream, "%s\n", list_formatted);
+  free(list_formatted);
+}
+
+char* fmt_list(LinkedList* list) {
   ListNode *node = list->head;
-  fprintf(stream, "(");
-  if (node != NULL) {
-    list->print_node(list, node, stream);
-    node = node->next;
-  }
+  char* str = malloc(sizeof(char)*3);
+  str[0] = '(';
+  str[1] = '\0';
+  int len = 3;
   while (node != NULL) {
-    fprintf(stream, "->");
-    list->print_node(list, node, stream);
-    node = node->next;
+    char* node_str = list->fmt_node_data(node->data);
+    len += strlen(node_str) + 2;
+    str = realloc(str, len);
+    strcat(str, node_str);
+    free(node_str);
+    node = list->next_node(node);
+    if (node != NULL) {
+      strcat(str, "->");
+    }
   }
-  fprintf(stream, ")\n");
+  strcat(str, ")");
+  return str; 
 }
 
 void print_node(LinkedList *list, void *to_be_printed, FILE *stream) {

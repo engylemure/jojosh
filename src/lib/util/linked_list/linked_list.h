@@ -25,12 +25,14 @@ typedef struct linkedList {
   void (*print_node)(struct linkedList *list, void *to_be_printed,
                      FILE *stream);
   void (*print)(struct linkedList *list, FILE *stream);
+  char* (*fmt)(struct linkedList *list);
   void (*push)(struct linkedList *list, void *to_be_pushed);
   void *(*pop)(struct linkedList *list);
   void (*drop)(struct linkedList *list);
   void (*for_each)(struct linkedList *list,
                    void (*cb)(void *data, int i, void *aux_arg), void *aux_arg);
   void (*drop_data)(void *data);
+  ListNode* (*next_node)(ListNode *node);
   int (*count)(struct linkedList *list);
 
 } LinkedList;
