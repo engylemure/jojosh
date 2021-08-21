@@ -3,11 +3,15 @@
 
 #include <stdbool.h>
 #include <stdio.h>
+#include <sys/types.h>
 
 enum CallType {
   Basic,
+  Sequential,
   Parallel,
   Piped,
+  RedirectStdout,
+  RedirectStdIn,
 };
 
 typedef struct shellState {
@@ -23,21 +27,40 @@ typedef struct callResult {
   char *program_name;
   enum CallStatus status;
   bool is_parent;
+  pid_t child_pid;
   void (*drop)(struct callResult *self);
 } CallResult;
 
-typedef struct callArgs {
-  int call_amount;
-  enum CallType type;
-  CallResult *(*call)(struct callArgs *self);
-  void (*add_arg)(struct callArgs *self, char *str_call);
-  void (*drop)(struct callArgs *self);
-  char **str_calls;
-} CallArgs;
+typedef struct execArgs {
+  int argc;
+  char **argv;
+  void (*drop)(struct execArgs *self);
+} ExecArgs;
 
-CallArgs *prompt_user(ShellState *state);
+typedef struct callGroup {
+  int exec_amount;
+  enum CallType type;
+  char* file_name;
+  ExecArgs** exec_arr;
+  void (*drop)(struct callGroup *self);
+} CallGroup;
+
+typedef struct callGroups {
+  int len;
+  CallGroup** groups;
+  void (*drop)(struct callGroups *self);
+} CallGroups;
+
+typedef struct callArg {
+  CallGroups *(*call_groups)(struct callArg *self);
+  void (*drop)(struct callArg *self);
+  char *arg;
+} CallArg;
+
+CallArg *prompt_user(ShellState *state);
 ShellState *initialize_shell_state();
 void install_sig_handlers();
 void clean_sig_handlers();
+CallResult* basic_exec_args_call(ExecArgs* exec_args, bool should_wait);
 
 #endif

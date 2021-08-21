@@ -28,6 +28,7 @@ typedef struct linkedList {
   char* (*fmt)(struct linkedList *list);
   void (*push)(struct linkedList *list, void *to_be_pushed);
   void *(*pop)(struct linkedList *list);
+  void *(*deque)(struct linkedList *list);
   void (*drop)(struct linkedList *list);
   void (*for_each)(struct linkedList *list,
                    void (*cb)(void *data, int i, void *aux_arg), void *aux_arg);

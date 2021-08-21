@@ -23,6 +23,8 @@ void iterate(LinkedList *list, void (*cb)(void *data, int i, void *aux_arg),
 ListNode* next_node(ListNode* node);
 char* fmt_list(LinkedList* list);
 int count(LinkedList *list);
+void* deque(LinkedList *list);
+char *default_fmt_node_data(void *data);
 
 LinkedList *initialize_list(char *(*fmt_data)(void *to_be_printed),
                             void (*drop_data)(void *data)) {
@@ -41,11 +43,10 @@ LinkedList *initialize_list(char *(*fmt_data)(void *to_be_printed),
   new_list->drop_data = drop_data;
   new_list->for_each = *iterate;
   new_list->fmt = *fmt_list;
-  
+  new_list->deque = *deque;
   if (fmt_data != NULL) {
     new_list->fmt_node_data = fmt_data;
   } else {
-    char *default_fmt_node_data(void *data);
     new_list->fmt_node_data = *default_fmt_node_data;
   }
   return new_list;
@@ -111,6 +112,22 @@ void *pop(LinkedList *self) {
   } else {
     return NULL;
   }
+}
+
+void *deque(LinkedList *self) {
+  if (self->head != NULL) {
+    ListNode* head_node = self->head;
+    self->head = head_node->next;
+    if (self->head != NULL) {
+      self->head->previous = NULL;
+    } else {
+      self->tail = NULL;
+    }
+    void *data = head_node->data;
+    free(head_node);
+    return data;
+  } 
+  return NULL;
 }
 
 ListNode *next_node(ListNode *node) { return node != NULL ? node->next : NULL; }

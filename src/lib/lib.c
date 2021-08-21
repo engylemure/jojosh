@@ -6,12 +6,11 @@
 #include "lib.h"
 #include "util/string_util/string_util.h"
 
-
-
 char *read_env(char *name) {
   char *env = malloc(sizeof(char) * BUFFER_MAX_SIZE);
   char *env_value;
   if (!(env_value = getenv(name))) {
+
     fprintf(stderr, "The environment variable '%s' is not available!\n", name);
     exit(1);
   }
@@ -56,38 +55,22 @@ ShellState *initialize_shell_state() {
   return state;
 }
 
-CallResult *call(CallArgs *self);
-
-void drop_call_args(CallArgs *self) {
+void drop_call_args(CallArg *self) {
   if (self != NULL) {
-    int i;
-    for (i = 0; i < self->call_amount; i++) {
-      free(self->str_calls[i]);
-    }
-    free(self->str_calls);
+    free(self->arg);
     free(self);
   } else {
     perror("double free on CallArgs!\n");
     exit(1);
   }
 }
-void add_arg(CallArgs *call_args, char *arg) {
-  if (call_args != NULL) {
-    call_args->str_calls[call_args->call_amount] = arg;
-    call_args->call_amount += 1;
-  } else {
-    perror("we cannot add_arg into a NULL CallArgs!\n");
-    exit(1);
-  }
-}
 
-CallArgs *initialize_call_args(int call_amount) {
-  CallArgs *self = malloc(sizeof(CallArgs));
-  self->call_amount = 0;
-  self->type = Basic;
-  self->call = *call;
-  self->str_calls = malloc(sizeof(char *) * call_amount);
-  self->add_arg = *add_arg;
+CallGroups *call_groups(CallArg *call_arg);
+
+CallArg *initialize_call_args(char *arg) {
+  CallArg *self = malloc(sizeof(CallArg));
+  self->arg = strdup(arg);
+  self->call_groups = *call_groups;
   self->drop = *drop_call_args;
   return self;
 }
@@ -98,11 +81,9 @@ const char EndAnsi[] = "\033[0m";
 const char RedAnsi[] = "\033[91m";
 const char YellowAnsi[] = "\033[93m";
 
-void todo(char *msg) {
-  printf("%sTODO: %s%s\n", YellowAnsi, msg, EndAnsi);
-}
+void todo(char *msg) { printf("%sTODO: %s%s\n", YellowAnsi, msg, EndAnsi); }
 
-CallArgs *prompt_user(ShellState *state) {
+CallArg *prompt_user(ShellState *state) {
   if (state != NULL) {
     char input[BUFFER_MAX_SIZE];
     fflush(stdout);
@@ -113,8 +94,7 @@ CallArgs *prompt_user(ShellState *state) {
     fflush(stdin);
     fgets(input, BUFFER_MAX_SIZE, stdin);
     input[strcspn(input, "\n")] = '\0';
-    CallArgs *call = initialize_call_args(1);
-    call->add_arg(call, strdup(input));
+    CallArg *call = initialize_call_args(input);
     return call;
   } else {
     perror("provided ShellState is NULL\n");
@@ -122,49 +102,126 @@ CallArgs *prompt_user(ShellState *state) {
   }
 }
 
-void install_sig_handlers() {
-  todo("Install signal handlers!");
-}
+void install_sig_handlers() { todo("Install signal handlers!"); }
 
-void clean_sig_handlers() {
-  todo("Clean Signal handlers!");
-}
-
-typedef struct execArgs {
-  int argc;
-  char **argv;
-  void (*drop)(struct execArgs *self);
-} ExecArgs;
+void clean_sig_handlers() { todo("Clean Signal handlers!"); }
 
 void drop_exec_args(ExecArgs *self);
 
-// We want to parse and tokenize to separate this
-// in different call objects instead of this ExecArgs, this actually should be
-// the final result of the parsing instead of the initial one
-
-char* fmt_call(void* call) {
-  char* call_str = (char*)call;
-  int fmt_len = strlen(call_str)+3;
-  char* fmt = malloc(fmt_len);
+char *fmt_call(void *call) {
+  char *call_str = (char *)call;
+  int fmt_len = strlen(call_str) + 3;
+  char *fmt = malloc(fmt_len);
   fmt[0] = '\'';
   fmt[1] = '\0';
   strcat(fmt, call_str);
   fmt[fmt_len - 2] = '\'';
-  fmt[fmt_len - 1] = '\0';  
+  fmt[fmt_len - 1] = '\0';
   return fmt;
 }
 
-char* fmt_call_list(void* call_list) {
-  LinkedList* list = (LinkedList*)call_list;
+char *fmt_call_list(void *call_list) {
+  LinkedList *list = (LinkedList *)call_list;
   return list->fmt(list);
 }
 
-LinkedList* calls_from_str(char *str) {
-  StrSplitResult *split_res = str_split(strdup(str), " ");
-  LinkedList* list_calls = initialize_list(&fmt_call_list, (void(*)(void*))drop_list);
-  LinkedList* list_call = initialize_list(&fmt_call, free);
+LinkedList *new_list_call() { return initialize_list(&fmt_call, free); }
+
+char *fmt_exec_arg(void *data);
+
+char *fmt_call_group(void *data) {
+  CallGroup *call_group = data;
+  char *formatted_call_group = malloc(sizeof(char) * BUFFER_MAX_SIZE / 2);
+  formatted_call_group[0] = '[';
+  formatted_call_group[1] = '\0';
   int i;
-  ListNode* str_node;
+  for (i = 0; i < call_group->exec_amount; i++) {
+    char *exec_arg = fmt_exec_arg(call_group->exec_arr[i]);
+    if (i == 0) {
+      strcat(formatted_call_group, exec_arg);
+    } else {
+      strcat(formatted_call_group, ",");
+      strcat(formatted_call_group, exec_arg);
+    }
+    free(exec_arg);
+  }
+  strcat(formatted_call_group, "](");
+  char *call_group_type;
+  switch (call_group->type) {
+  case Basic:
+    call_group_type = "Basic";
+    break;
+  case Parallel:
+    call_group_type = "Parallel";
+    break;
+  case Piped:
+    call_group_type = "Piped";
+    break;
+  case RedirectStdIn:
+    call_group_type = "RedirectStdin";
+    break;
+  case RedirectStdout:
+    call_group_type = "RedirectStdout";
+    break;
+  case Sequential:
+    call_group_type = "Sequential";
+    break;
+  }
+  strcat(formatted_call_group, call_group_type);
+  strcat(formatted_call_group, ")");
+  return formatted_call_group;
+}
+
+void drop_call_group(CallGroup *self) {
+  int i;
+  for (i = 0; i < self->exec_amount; i++) {
+    self->exec_arr[i]->drop(self->exec_arr[i]);
+  }
+  free(self->exec_arr);
+  self->exec_arr = NULL;
+  if (self->file_name != NULL) {
+    free(self->file_name);
+    self->file_name = NULL;
+  }
+  free(self);
+}
+
+LinkedList *new_list_call_group() {
+  return initialize_list(&fmt_call_group, (void (*)(void *))drop_call_group);
+}
+
+char *fmt_exec_arg(void *data) {
+  ExecArgs *exec_args = data;
+  int argv_len = 15;
+  int i;
+  for (i = 0; i < exec_args->argc; i++) {
+    argv_len += strlen(exec_args->argv[i]) + 1;
+  }
+  char *argv = malloc(sizeof(char) * argv_len);
+  argv[0] = '[';
+  argv[1] = '\0';
+  for (i = 0; i < exec_args->argc; i++) {
+    char *formatted_call = fmt_call(exec_args->argv[i]);
+    strcat(argv, formatted_call);
+    free(formatted_call);
+    if (i != exec_args->argc - 1)
+      strcat(argv, ",");
+  }
+  strcat(argv, "]");
+  return argv;
+}
+
+LinkedList *new_list_exec_args() {
+  return initialize_list(&fmt_exec_arg, (void (*)(void *))drop_call_args);
+}
+
+LinkedList *calls_from_str(char *str) {
+  StrSplitResult *split_res = str_split(strdup(str), " ");
+  LinkedList *list_calls =
+      initialize_list(&fmt_call_list, (void (*)(void *))drop_list);
+  LinkedList *list_call = initialize_list(&fmt_call, free);
+  int i;
+  ListNode *str_node;
   for (str_node = split_res->str_list->head, i = 0; str_node != NULL;
        str_node = split_res->str_list->next_node(str_node)) {
     if (strlen(str_node->data) != 0) {
@@ -175,7 +232,7 @@ LinkedList* calls_from_str(char *str) {
       } else if (str_equals(trimmed_cmd, "&")) {
         list_calls->push(list_calls, list_call);
         list_call = initialize_list(&fmt_call, free);
-      }else if (str_equals(trimmed_cmd, "&&")) {
+      } else if (str_equals(trimmed_cmd, "&&")) {
         list_calls->push(list_calls, list_call);
         list_call = initialize_list(&fmt_call, free);
       } else {
@@ -212,15 +269,14 @@ ExecArgs *from_str_call(char *str) {
   return self;
 }
 
-ExecArgs* from_call_list(LinkedList* list) {
+ExecArgs *from_call_list(LinkedList *list) {
   ExecArgs *self = malloc(sizeof(ExecArgs));
   self->drop = *drop_exec_args;
   self->argc = list->count(list);
   ListNode *node;
   self->argv = malloc(sizeof(char *) * (self->argc + 1));
   int i;
-  for (node = list->head, i = 0; node != NULL;
-       node = next_node(node)) {
+  for (node = list->head, i = 0; node != NULL; node = next_node(node)) {
     if (strlen(node->data) != 0) {
       char *trimmed_cmd = str_trim(node->data);
       self->argv[i++] = trimmed_cmd;
@@ -228,7 +284,7 @@ ExecArgs* from_call_list(LinkedList* list) {
   }
   self->argv[i] = NULL;
   self->argc = i;
-  // list->drop(list);
+  list->drop(list);
   return self;
 }
 
@@ -241,9 +297,9 @@ void drop_exec_args(ExecArgs *self) {
   free(self);
 }
 
-enum CallStatus basic_call(CallArgs *call_args, CallResult *res) {
+enum CallStatus basic_call(CallArg *call_arg, CallResult *res) {
   char *delim = " ";
-  LinkedList* calls_list = calls_from_str(call_args->str_calls[0]);
+  LinkedList *calls_list = calls_from_str(call_arg->arg);
   ExecArgs *exec_args = from_call_list(calls_list->head->data);
   calls_list->drop(calls_list);
   enum CallStatus status = UnknownCommand;
@@ -280,21 +336,194 @@ enum CallStatus basic_call(CallArgs *call_args, CallResult *res) {
   return status;
 }
 
-void drop_call_res(CallResult *self) { free(self); }
+void drop_call_res(CallResult *self) {
+  if (self->program_name != NULL) {
+    free(self->program_name);
+    self->program_name = NULL;
+  }
+  free(self);
+}
 
-CallResult *call(CallArgs *call_args) {
+CallGroup *call_group(LinkedList *list_exec_args, enum CallType type) {
+  CallGroup *self = malloc(sizeof(CallGroup));
+  int count = list_exec_args->count(list_exec_args);
+  ExecArgs **exec_arr = malloc(sizeof(ExecArgs *) * count);
+  ExecArgs *exec_args;
+  int i = 0;
+  while ((exec_args = list_exec_args->deque(list_exec_args)) != NULL) {
+    exec_arr[i++] = exec_args;
+  }
+  list_exec_args->drop(list_exec_args);
+  self->type = type;
+  self->exec_amount = count;
+  self->exec_arr = exec_arr;
+  self->drop = *drop_call_group;
+  self->file_name = NULL;
+  return self;
+}
+
+void drop_call_groups(CallGroups *self) {
+  int i;
+  for (i = 0; i < self->len; i++) {
+    CallGroup *call_group = self->groups[i];
+    call_group->drop(call_group);
+  }
+  free(self->groups);
+  free(self);
+}
+// Temporary handling unwanted or unused characters
+bool is_ignorable_call(char *str) {
+  return strlen(str) || str[0] == '(' || str[0] == ')';
+}
+
+// This is a basic tokenizer to more easily handle the
+// CallGroup's since it's a dumb one at the moment will not support
+// different call types at the same time
+CallGroups *call_groups(CallArg *call_arg) {
+  // Splitting input by space
+  StrSplitResult *split_res = str_split(strdup(call_arg->arg), " ");
+  LinkedList *list_call_group = new_list_call_group();
+  LinkedList *list_exec_args = new_list_exec_args();
+  LinkedList *list_call = new_list_call();
+  enum CallType type = Basic;
+  int i;
+  ListNode *str_node;
+  for (str_node = split_res->str_list->head, i = 0; str_node != NULL;
+       str_node = split_res->str_list->next_node(str_node)) {
+    if (is_ignorable_call(str_node->data)) {
+      char *trimmed_cmd = str_trim(str_node->data);
+      if (str_equals(trimmed_cmd, "|")) {
+        ExecArgs *exec_arg = from_call_list(list_call);
+        list_call = new_list_call();
+        if (type == Basic || type == Parallel) {
+          type = Parallel;
+          list_exec_args->push(list_exec_args, exec_arg);
+        } else {
+          list_call_group->push(list_call_group,
+                                call_group(list_exec_args, type));
+          list_exec_args = new_list_exec_args();
+          type = Basic;
+        }
+        free(trimmed_cmd);
+      } else if (str_equals(trimmed_cmd, "&")) {
+        ExecArgs *exec_arg = from_call_list(list_call);
+        list_call = new_list_call();
+        if (type == Basic || type == Piped) {
+          type = Piped;
+          list_exec_args->push(list_exec_args, exec_arg);
+        } else {
+          list_call_group->push(list_call_group,
+                                call_group(list_exec_args, type));
+          list_exec_args = new_list_exec_args();
+          type = Basic;
+        }
+        free(trimmed_cmd);
+      } else if (str_equals(trimmed_cmd, "&&")) {
+        ExecArgs *exec_arg = from_call_list(list_call);
+        list_call = new_list_call();
+        if (type == Basic || type == Sequential) {
+          type = Sequential;
+          list_exec_args->push(list_exec_args, exec_arg);
+        } else {
+          list_call_group->push(list_call_group,
+                                call_group(list_exec_args, type));
+          list_exec_args = new_list_exec_args();
+          type = Basic;
+        }
+        free(trimmed_cmd);
+      } else {
+        list_call->push(list_call, trimmed_cmd);
+      }
+    }
+  }
+  if (list_call->count(list_call)) {
+    list_exec_args->push(list_exec_args, from_call_list(list_call));
+  } else {
+    list_call->drop(list_call);
+  }
+  list_call_group->push(list_call_group, call_group(list_exec_args, type));
+  list_call_group->print(list_call_group, stdout);
+  int call_group_count = list_call_group->count(list_call_group);
+  CallGroups *self = malloc(sizeof(CallGroups));
+  self->drop = *drop_call_groups;
+  self->groups = malloc(sizeof(CallGroups *) * call_group_count);
+  self->len = call_group_count;
+  i = 0;
+  CallGroup *call_group;
+  while ((call_group = list_call_group->deque(list_call_group)) != NULL) {
+    self->groups[i++] = call_group;
+  }
+  list_call_group->drop(list_call_group);
+  split_res->drop(split_res);
+  return self;
+}
+
+CallResult *new_call_result(enum CallStatus status, bool is_parent,
+                            char *program_name, pid_t child_pid) {
   CallResult *res = malloc(sizeof(CallResult));
-  res->is_parent = true;
   res->drop = *drop_call_res;
-  switch (call_args->type) {
-  case Basic:
-    res->status = basic_call(call_args, res);
-    break;
-  default:
-    res->status = UnknownCommand;
-  }
-  if (res->status == UnknownCommand) {
-    res->program_name = call_args->str_calls[0];
-  }
+  res->is_parent = is_parent;
+  res->status = status;
+  res->program_name = program_name;
+  res->child_pid = child_pid;
   return res;
 }
+
+CallResult *basic_exec_args_call(ExecArgs *exec_args, bool should_wait) {
+  enum CallStatus status = UnknownCommand;
+  char *program_name = NULL;
+  bool is_parent = true;
+  pid_t child_pid = 0;
+  if (exec_args->argc == 0) {
+    status = Continue;
+  } else {
+    program_name = exec_args->argv[0];
+    if (str_equals(program_name, "exit")) {
+      printf("JoJo Shell was exited!\n");
+      status = Exit;
+    } else if (str_equals(program_name, "cd")) {
+      todo("handle 'cd' call");
+      status = Continue;
+    } else {
+      child_pid = fork();
+      if (child_pid == -1) {
+        perror("We can't start a new program since 'fork' failed!\n");
+        exit(1);
+      } else if (child_pid) {
+        status = Continue;
+        if (should_wait) {
+          int wait_status;
+          waitpid(child_pid, &wait_status, WUNTRACED);
+          if (WIFEXITED(wait_status) &&
+              (WEXITSTATUS(wait_status) == UnknownCommand)) {
+            status = UnknownCommand;
+          }
+        }
+      } else {
+        execvp(program_name, exec_args->argv);
+        is_parent = false;
+      }
+    }
+  }
+  return new_call_result(status, is_parent,
+                         status == UnknownCommand ? strdup(program_name) : NULL,
+                         child_pid);
+}
+
+// CallResult *call(CallArg *call_args) {
+//   CallResult *res = malloc(sizeof(CallResult));
+//   res->is_parent = true;
+//   res->drop = *drop_call_res;
+//   res->program_name = NULL;
+//   switch (call_args->type) {
+//   case Basic:
+//     res->status = basic_call(call_args, res);
+//     break;
+//   default:
+//     res->status = UnknownCommand;
+//   }
+//   if (res->status == UnknownCommand) {
+//     res->program_name = strdup(call_args->arg);
+//   }
+//   return res;
+// }
