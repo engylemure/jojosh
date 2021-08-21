@@ -35,6 +35,7 @@ typedef struct execArgs {
   int argc;
   char **argv;
   void (*drop)(struct execArgs *self);
+  CallResult *(*call)(struct execArgs* self, bool should_wait);
 } ExecArgs;
 
 typedef struct callGroup {
@@ -59,8 +60,5 @@ typedef struct callArg {
 
 CallArg *prompt_user(ShellState *state);
 ShellState *initialize_shell_state();
-void install_sig_handlers();
-void clean_sig_handlers();
-CallResult* basic_exec_args_call(ExecArgs* exec_args, bool should_wait);
-
+void todo(char *msg);
 #endif
