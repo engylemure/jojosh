@@ -9,7 +9,6 @@
 /*
  * Utility functions
  */
-char *read_env(char *name);
 void todo(char *msg);
 LinkedList *new_list_string(); // Create a list of owned strings
 char *fmt_list_string(void *(call_list));
@@ -36,7 +35,7 @@ ExecArgs *exec_args_from_call_list(LinkedList *list);
 void drop_exec_args(ExecArgs *self);
 char *fmt_exec_arg(void *data);
 LinkedList *new_list_exec_args();
-CallResult *basic_exec_args_call(ExecArgs *self, bool should_wait);
+CallResult *basic_exec_args_call(ExecArgs *self, bool should_fork, bool should_wait);
 
 /*
  * CallRes functions
@@ -112,6 +111,13 @@ bool is_ignorable_call(char *str) {
   return strlen(str) || str[0] == '(' || str[0] == ')';
 }
 
+bool DEBUG_IS_ON = false;
+void debug_lib(bool should_debug) {
+  if (should_debug) {
+    DEBUG_IS_ON = true;
+  }
+}
+
 ShellState *initialize_shell_state() {
   char *PWD = read_env("PWD");
   char *HOME = read_env("HOME");
@@ -185,6 +191,7 @@ void drop_call_arg(CallArg *self) {
 ExecArgs *exec_args_from_call_list(LinkedList *list) {
   ExecArgs *self = malloc(sizeof(ExecArgs));
   self->drop = *drop_exec_args;
+  self->fmt = (char*(*)(struct execArgs *self))*fmt_exec_arg;
   self->call = *basic_exec_args_call;
   self->argc = list->count(list);
   ListNode *node;
@@ -236,7 +243,7 @@ LinkedList *new_list_exec_args() {
   return initialize_list(&fmt_exec_arg, (void (*)(void *))drop_exec_args);
 }
 
-CallResult *basic_exec_args_call(ExecArgs *exec_args, bool should_wait) {
+CallResult *basic_exec_args_call(ExecArgs *exec_args, bool should_fork, bool should_wait) {
   enum CallStatus status = UnknownCommand;
   char *program_name = NULL;
   bool is_parent = true;
@@ -252,7 +259,7 @@ CallResult *basic_exec_args_call(ExecArgs *exec_args, bool should_wait) {
       todo("handle 'cd' call");
       status = Continue;
     } else {
-      child_pid = fork();
+      child_pid = should_fork ? fork() : 0;
       if (child_pid == -1) {
         perror("We can't start a new program since 'fork' failed!\n");
         exit(1);
@@ -267,6 +274,7 @@ CallResult *basic_exec_args_call(ExecArgs *exec_args, bool should_wait) {
           }
         }
       } else {
+        // printf("program_name:%s\n", program_name);
         execvp(program_name, exec_args->argv);
         is_parent = false;
       }
@@ -442,7 +450,9 @@ CallGroups *call_groups(CallArg *call_arg) {
   }
   list_call_group->push(list_call_group,
                         call_group_from_list_exec_args(list_exec_args, type));
-  list_call_group->print(list_call_group, stdout);
+  if (DEBUG_IS_ON) {
+    list_call_group->print(list_call_group, stdout);
+  }
   int call_group_count = list_call_group->count(list_call_group);
   CallGroups *self = malloc(sizeof(CallGroups));
   self->drop = *drop_call_groups;
