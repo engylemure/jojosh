@@ -2,7 +2,8 @@
 #include <stdbool.h>
 #include <stdio.h>
 
-#include "main.h"
+#include "lib/lib.h"
+#include "lib/handlers.h"
 
 int main(void) {
   char *debug_env = getenv("DEBUG");
@@ -24,17 +25,17 @@ int main(void) {
       switch (call_group->type) {
       case Basic:
         if (call_group->exec_amount)
-          basic_handle(call_group->exec_arr[0], true, &should_continue,
+          basic_cmd_handler(call_group->exec_arr[0], true, &should_continue,
                        &status_code);
         break;
       case Parallel:
-        parallel_handle(call_group, &should_continue, &status_code);
+        parallel_cmd_handler(call_group, &should_continue, &status_code);
         break;
       case Sequential:
-        sequential_handle(call_group, &should_continue, &status_code);
+        sequential_cmd_handler(call_group, &should_continue, &status_code);
         break;
       case Piped:
-        piped_handle(call_group, &should_continue, &status_code);
+        piped_cmd_handler(call_group, &should_continue, &status_code);
         break;
       default:
         break;

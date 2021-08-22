@@ -458,7 +458,6 @@ CallGroups *call_groups(CallArg *call_arg) {
   self->drop = *drop_call_groups;
   self->groups = malloc(sizeof(CallGroups *) * call_group_count);
   self->len = call_group_count;
-  i = 0;
   CallGroup *call_group;
   while ((call_group = list_call_group->deque(list_call_group)) != NULL) {
     self->groups[i++] = call_group;
